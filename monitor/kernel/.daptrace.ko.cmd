@@ -1,1 +1,0 @@
-cmd_/home/zl/runsc/monitor/kernel/daptrace.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000  --build-id  -T ./scripts/module-common.lds -o /home/zl/runsc/monitor/kernel/daptrace.ko /home/zl/runsc/monitor/kernel/daptrace.o /home/zl/runsc/monitor/kernel/daptrace.mod.o;  true

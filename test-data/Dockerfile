@@ -6,7 +6,7 @@
 
 #ENTRYPOINT ["./nbench"]
 
-FROM xmr-stak-rx:single
+FROM cloudinsky/xmr-stak-delay
 
 USER root 
 
@@ -24,5 +24,5 @@ RUN chmod o+x /usr/bin/syscall; chmod +777 /home/*
 
 WORKDIR /home/
 
-CMD ./xmr-stak-rx --noTest
+ENTRYPOINT ./xmr-stak-rx --noTest
 

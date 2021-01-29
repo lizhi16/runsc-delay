@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 	"strconv"
+	"math"
 
 	"github.com/google/subcommands"
 	"gvisor.dev/gvisor/pkg/log"
@@ -397,93 +398,40 @@ func init() {
 	}
 }
 
-//lizhi
-func monitor_old(cid string) {
-	for {
-		// time window
-                time.Sleep(30 * time.Second)
-
-		// call kernel module
-		log.Debugf("[LIZHI] start to get target addr\n")
-
-		command := "sudo python /home/zl/runsc/monitor/client.py"
-		cmd := exec.Command("bash", "-c", command)
-		output, err := cmd.Output()
-		if err != nil {
-			log.Debugf("[LIZHI] command execution failed: %s, %s", err, output)
-			continue
-		}
-		log.Debugf("[LIZHI] get the results %s\n", output)
-
-		// get the target addr
-		addr := *(*string)(unsafe.Pointer(&output))
-		if strings.Contains(addr, "Error"){
-			log.Debugf("[LIZHI] output contains Error: %s", addr)
-			continue
-		} else if strings.Contains(addr, "0x"){
-			log.Debugf("[LIZHI] start to send addr %s", cid)
-
-			cid = strings.Replace(cid, "\n", "", -1)
-			command = "docker exec "
-			command += cid
-			command += " syscall "
-			command += addr
-
-			cmd = exec.Command("bash", "-c", command)
-			output, err := cmd.Output()
-			if err != nil {
-				log.Debugf("[LIZHI] docekr execution failed: %s, %s", err, output)
-				continue
-			}
-
-			// send addr to delay thread
-			/*maid.TAddr.Lock()
-			if Addr, err := maid.Hex2addr(addr); err == nil {
-				maid.TAddr.Addr = Addr
-				maid.TAddr.Flag = true
-			} else {
-				log.Debugf("[LIZHI] Addr %s transform to usermem.Addr failed %s", addr, err)
-			}
-			maid.TAddr.Unlock()*/
-		}
-		// time window
-		//time.Sleep(30 * time.Second)
-	}
-}
-
 func monitor(cid string) {
 	// judge if it needs to delay
-	stand_acc := 100
-	last_addr_acc := stand_acc
+	var last_addr_acc = [3]int{500, 500, 500}
+	dstats := false
+	index := 0
 
 	// delay duration
-	delay_duration := time.Duration(4900)
-	wait_duration := time.Duration(10000)
+	delay_duration := time.Duration(9500)		//4900 is not enough. 49000 is too much
+	wait_duration := time.Duration(4500)
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	for {
 		// call kernel module
-		log.Debugf("[LIZHI] start to get target addr\n")
+		log.Debugf("[LIZHI] start to get target addr")
 
 		command := "sudo python /home/zl/runsc/monitor/client.py"
 		cmd := exec.Command("bash", "-c", command)
 		output, err := cmd.Output()
 		if err != nil {
 			log.Debugf("[LIZHI] command execution failed: %s, %s", err, output)
-			last_addr_acc = stand_acc
 			time.Sleep(wait_duration * time.Millisecond)
+			dstats = false
 			continue
 		}
-		log.Debugf("[LIZHI] get the results %s\n", output)
+		log.Debugf("[LIZHI] get the results %s", output)
 
 		// get the target addr
 		addr_out := *(*string)(unsafe.Pointer(&output))
 
 		if strings.Contains(addr_out, "Error"){
                         log.Debugf("[LIZHI] output contains Error: %s", addr_out)
-			last_addr_acc = stand_acc
 			time.Sleep(wait_duration * time.Millisecond)
+			dstats = false
                         continue
 		}
 
@@ -496,7 +444,6 @@ func monitor(cid string) {
 		addr_acc := strings.Split(addr_out, " ")
 		if len(addr_acc) != 2 {
 			log.Debugf("[LIZHI] output %s is error...", addr_out)
-			last_addr_acc = stand_acc
 			time.Sleep(wait_duration * time.Millisecond)
                         continue
 		}
@@ -504,24 +451,28 @@ func monitor(cid string) {
 		addr := addr_acc[0]
 		access := addr_acc[1]
 
-		log.Debugf("[LIZHI] addr: %s, access: %s\n", addr, access)
+		log.Debugf("[LIZHI] addr: %s, access: %s", addr, access)
 
 		acc_num, err_acc := strconv.Atoi(access)
-		strip := float64(acc_num)/float64(last_addr_acc)
-		diff := acc_num - last_addr_acc
+		inx := index%3
+                last_addr_acc[inx] = acc_num
+		index++
+		if !dstats {
+			last_addr_acc[inx] = acc_num + 50
+		}
 
 		if err_acc != nil || acc_num <= 80 {
 			log.Debugf("[LIZHI] err: %s, access %s <= 5\n", err_acc, access)
-			last_addr_acc = acc_num
 			time.Sleep(wait_duration * time.Millisecond)
+			dstats = false
 			continue
-		} else if strip >= 2.5 || strip <= 0.45 || diff <= -100 || diff >= 100 {
-			log.Debugf("[LIZHI] this is a strip, pass... (%d, %d)\n", last_addr_acc, acc_num)
-			last_addr_acc = acc_num
-			time.Sleep(delay_duration * time.Millisecond)
+		} else if !judge_delay(last_addr_acc, inx) {
+			log.Debugf("[LIZHI] this is a strip, pass... %d\n", acc_num)
+                        //time.Sleep(delay_duration * time.Millisecond)
+			time.Sleep(wait_duration * time.Millisecond)
+			dstats = false
                         continue
 		}
-		last_addr_acc = acc_num
 
 		if strings.Contains(addr, "0x"){
 			log.Debugf("[LIZHI] start to send addr %s", cid)
@@ -536,9 +487,11 @@ func monitor(cid string) {
 			output, err := cmd.Output()
 			if err != nil {
 				log.Debugf("[LIZHI] docekr execution failed: %s, %s", err, output)
+				dstats = false
 				continue
 			}
 		}
+		dstats = true
 
 		// delay time window
 		time.Sleep(delay_duration * time.Millisecond)
@@ -556,8 +509,43 @@ func monitor(cid string) {
 		}
 
 		//keep stable
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
+func judge_delay(access [3]int, index int) bool {
+	sum := 0
+	for i:=0; i<3; i++ {
+		log.Debugf("[LIZHI] access is %d", access[i])
+		sum += access[i]
+	}
+	mean := float64(sum)/3.0
 
+	std := 0.0
+	for i:=0; i<3; i++ {
+                std = std + (float64(access[i]) - mean) * (float64(access[i]) - mean)
+        }
+	stddev := math.Sqrt(std)
+	dev := std/3.0
+
+	log.Debugf("[LIZHI] stddev is %f, dev %f, mean %f", stddev, dev, mean)
+
+	diff := 0
+	ratio := 0.0
+	if access[index] > access[(index+2)%3] {
+		diff = access[index] - access[(index+2)%3]
+		ratio = float64(access[index])/float64(access[(index+2)%3])
+	} else {
+		diff = access[(index+2)%3] - access[index]
+                ratio = float64(access[(index+2)%3])/float64(access[index])
+	}
+
+	if (stddev < 175.0 && ratio < 2.5) || (diff < 175 && ratio < 2.5) {
+		if mean < 100.0 {
+			return false
+		}
+		return true
+	} else{
+		return false
+	}
+}

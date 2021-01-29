@@ -104,6 +104,8 @@ def analyze_log():
                 flag = 1
                 addr = struct.unpack('L', line)[0]
 
+                print ("test ", addr)
+
                 line = f.read(8)
                 access = struct.unpack('L', line)[0]
 
@@ -130,7 +132,7 @@ DBGFS_PIDS = DBGFS + "pids"
 DBGFS_TRACING_ON = DBGFS + "tracing_on"
 
 def get_target_addr():
-    targets = get_pid()
+    targets = [sys.argv[1]]
     if len(targets) == 0:
         print ("[Error] don't have targets")
         return

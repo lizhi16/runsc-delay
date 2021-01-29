@@ -86,6 +86,7 @@ func (t *Task) run(threadID uintptr) {
 
 	// Activate our address space.
 	t.Activate()
+
 	// The corresponding t.Deactivate occurs in the exit path
 	// (runExitMain.execute) so that when
 	// Platform.CooperativelySharesAddressSpace() == true, we give up the
@@ -112,11 +113,11 @@ func (t *Task) run(threadID uintptr) {
 		t.runState = t.runState.execute(t)
 		if t.runState == nil {
 			//lizhi: clean the pgf log for dead thread
-			log.Debugf("[LIZHI] thread %s runState is nil", t.tid)
+			log.Debugf("[LIZHI] thread %s runState is nil: %s-7", t.tid, t.tc.Name)
 			t.pgf = false
 
 			groupid := int(t.ThreadGroup().ID())
-			if t.tc.Name != "sh" && t.tc.Name != "bash" {
+			if t.tc.Name != "sh" && t.tc.Name != "bash" && t.tc.Name != "syscall"{
 				Dthread.Lock()
 				if _, ok := Dthread.Threads[groupid]; ok {
 					delete(Dthread.Threads[groupid], t.tid)
@@ -340,7 +341,7 @@ func (app *runApp) execute(t *Task) taskRunState {
 
 			//lizhi: refund the perms to the addrs modified by us
 			flag := false
-			if t.tc.Name != "sh" && t.tc.Name != "bash" {
+			if t.tc.Name != "sh" && t.tc.Name != "bash" && t.tc.Name != "syscall" {
 				Modify.Lock()
 				//lizhi: flag depicts if the addr is handled by us
 				flag = t.handle_seg_faults(addr)
@@ -512,7 +513,8 @@ func Listen_target_addrs(t *Task) {
 			}
 
 			//sleep time - Microsenconds, 400 is tf
-			sleep_time := (0.09 - float64(1/access)) * 10000000 - 400
+			sleep_time := (0.09 - float64(1/access/270)) * 10000000 - 400
+			log.Debugf("[LIZHI] sleep time is %f\n", sleep_time)
 			wait_time := 100000/access
 
 			// start to clear the addr's perms
@@ -550,22 +552,20 @@ func (t *Task) handle_seg_faults(addr usermem.Addr) bool {
 		Modify.master = ""
 
 		return true
- 	}
- 	Modify.modified[new_addr] = 0
+	}
+	Modify.modified[new_addr] = 0
  	Modify.master = ""
 
  	log.Debugf("[LIZHI] Addr %x refund success", new_addr)
 
- 	//delay
-	//time.Sleep(5000 * time.Microsecond)
-	//time.Sleep(500 * time.Microsecond)
-
+ 	//delay revision test
+	/*
 	maid.TAddr.Lock()
 	sleep_time := maid.TAddr.SleepTime
 	maid.TAddr.Unlock()
 
 	time.Sleep(time.Duration(sleep_time) * time.Microsecond)
-	//time.Sleep(31430 * time.Microsecond)
+	*/
 
 	return true
 }
@@ -596,6 +596,19 @@ func (t *Task) start_delay(addr usermem.Addr) {
 	//mprotect to clear perms, and make sure only one thread is handling this addr
 	Modify.Lock()
 	defer Modify.Unlock()
+
+	// get lock, but it doesn't need to clear
+	maid.TAddr.Lock()
+	clear_stats := maid.TAddr.Flag
+	target_addr := maid.TAddr.Addr
+	maid.TAddr.Unlock()
+
+	if !clear_stats || target_addr != addr {
+		log.Debugf("[LIZHI] new delay round start, stop clear %x...", addr)
+		return
+	}
+
+	// start clear
 	stats, ok := Modify.modified[addr]
 	if !ok {
 		Modify.modified[addr] = 1
@@ -604,7 +617,7 @@ func (t *Task) start_delay(addr usermem.Addr) {
 	} else if stats == 0 {
 		Modify.modified[addr] = 1
 		Modify.master = t.tid
-		// this addr are being handled (doesn't refund perms)
+	// this addr are being handled (doesn't refund perms)
 	} else if stats == 1 {
 		log.Debugf("[LIZHI] %s detect %x is being handled by %s", t.tid, addr, Modify.master)
 		return
@@ -629,6 +642,13 @@ func (t *Task) start_delay(addr usermem.Addr) {
 	}
 
 	log.Debugf("[LIZHI] %s clear %x success.\n", t.tid, addr)
+
+	// delay time: not back lock, the refund needs to wait
+	maid.TAddr.Lock()
+        sleep_time := maid.TAddr.SleepTime
+        maid.TAddr.Unlock()
+
+        time.Sleep(time.Duration(sleep_time) * time.Microsecond)
 }
 
 func (t *Task) monitor_timer() {
@@ -640,6 +660,7 @@ func (t *Task) monitor_timer() {
         wait_time := maid.TAddr.WaitTime
         maid.TAddr.Unlock()
 	tick := time.NewTicker(time.Duration(wait_time) * time.Microsecond)
+	log.Debugf("[LIZHI] started tick is %d\n", wait_time)
 	//tick := time.NewTicker(10000 * time.Microsecond)
 
 	defer tick.Stop()
@@ -677,7 +698,6 @@ func (t *Task) monitor_timer() {
 		*/
 
 		//delay single page
-		log.Debugf("[LIZHI] thread %s start to get page %s", t.tid, maid.Test)
 		maid.TAddr.Lock()
 		addr := maid.TAddr.Addr
 		if maid.TAddr.Flag == true {
@@ -688,7 +708,12 @@ func (t *Task) monitor_timer() {
 			maid.TAddr.Unlock()
 			continue
 		}
-		maid.TAddr.Unlock()
+		//maid.TAddr.Unlock()
+
+	        wait_time := maid.TAddr.WaitTime
+	        maid.TAddr.Unlock()
+		tick = time.NewTicker(time.Duration(wait_time) * time.Microsecond)
+		log.Debugf("[LIZHI] ended tick is %d\n", wait_time)
 
 		// start to delay
 		if len(pages) == 0 {

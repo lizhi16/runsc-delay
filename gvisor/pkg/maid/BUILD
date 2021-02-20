@@ -7,9 +7,12 @@ go_library(
     srcs = [
         "maid.go",
     ],
-    visibility = ["//pkg/sentry:internal"],
+    # visibility = ["//pkg/sentry:internal"],
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         "//pkg/usermem",
-	"//pkg/log"
+	    "//pkg/log",
     ],
 )

@@ -65,6 +65,9 @@ type Gofer struct {
 	panicOnWrite bool
 	specFD       int
 	mountsFD     int
+
+	//lizhi
+	addrFD		int
 }
 
 // Name implements subcommands.Command.
@@ -91,6 +94,9 @@ func (g *Gofer) SetFlags(f *flag.FlagSet) {
 	f.BoolVar(&g.setUpRoot, "setup-root", true, "if true, set up an empty root for the process")
 	f.IntVar(&g.specFD, "spec-fd", -1, "required fd with the container spec")
 	f.IntVar(&g.mountsFD, "mounts-fd", -1, "mountsFD is the file descriptor to write list of mounts after they have been resolved (direct paths, no symlinks).")
+
+	//LIZHI
+	f.IntVar(&g.addrFD, "addr-fd", -1, "lizhi: communicate with gofer and sandbox")
 }
 
 // Execute implements subcommands.Command.
@@ -211,6 +217,7 @@ func (g *Gofer) Execute(_ context.Context, f *flag.FlagSet, args ...interface{})
 	}
 
 	runServers(ats, g.ioFDs)
+
 	return subcommands.ExitSuccess
 }
 

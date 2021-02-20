@@ -76,6 +76,9 @@ type Sandbox struct {
 
 	// statusMu protects status.
 	statusMu sync.Mutex
+
+	//LIZHI: os.Pipe() to get info from gofer
+	RevAddr *os.File
 }
 
 // Args is used to configure a new sandbox.
@@ -112,12 +115,18 @@ type Args struct {
 	// Attached indicates that the sandbox lifecycle is attached with the caller.
 	// If the caller exits, the sandbox should exit too.
 	Attached bool
+
+	//LIZHI
+	RevAddr *os.File
 }
 
 // New creates the sandbox process. The caller must call Destroy() on the
 // sandbox.
 func New(conf *boot.Config, args *Args) (*Sandbox, error) {
-	s := &Sandbox{ID: args.ID, Cgroup: args.Cgroup}
+	//lizhi add
+	//s := &Sandbox{ID: args.ID, Cgroup: args.Cgroup}
+	s := &Sandbox{ID: args.ID, Cgroup: args.Cgroup, RevAddr: args.RevAddr}
+
 	// The Cleanup object cleans up partially created sandboxes when an error
 	// occurs. Any errors occurring during cleanup itself are ignored.
 	c := cleanup.Make(func() {
@@ -446,6 +455,12 @@ func (s *Sandbox) createSandboxProcess(conf *boot.Config, args *Args, startSyncF
 		cmd.Args = append(cmd.Args, "--io-fds="+strconv.Itoa(nextFD))
 		nextFD++
 	}
+
+	//=========LIZHI add rev file========
+	cmd.ExtraFiles = append(cmd.ExtraFiles, args.RevAddr)
+	cmd.Args = append(cmd.Args, fmt.Sprintf("--addr-fd=%d", nextFD))
+	nextFD++
+	//===================================
 
 	gPlatform, err := platform.Lookup(conf.Platform)
 	if err != nil {

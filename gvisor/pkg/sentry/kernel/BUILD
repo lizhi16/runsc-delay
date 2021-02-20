@@ -146,7 +146,11 @@ go_library(
         "gvisor.dev/gvisor/pkg/sentry/device",
         "gvisor.dev/gvisor/pkg/tcpip",
     ],
-    visibility = ["//:sandbox"],
+    visibility = [
+        "//:sandbox",
+        
+        "//runsc:__subpackages__"
+    ],
     deps = [
         ":uncaught_signal_go_proto",
         "//pkg/abi",
@@ -210,8 +214,7 @@ go_library(
         "//pkg/waiter",
         "//tools/go_marshal/marshal",
         
-        "//pkg/sentry/maid",
-	"//runsc/monitor"
+        "//pkg/maid",
     ],
 )
 

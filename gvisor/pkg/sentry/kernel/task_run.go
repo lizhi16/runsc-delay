@@ -33,7 +33,7 @@ import (
 	"fmt"
 	//"strings"
 	"gvisor.dev/gvisor/pkg/log"
-	"gvisor.dev/gvisor/pkg/sentry/maid"
+	"gvisor.dev/gvisor/pkg/maid"
 	//"gvisor.dev/gvisor/pkg/sentry/mm"
 )
 
@@ -304,10 +304,13 @@ func (app *runApp) execute(t *Task) taskRunState {
 
 	switch err {
 	case nil:
-		//lizhi: listen the target addr and clear its perms to trigger seg fault
+		/* old version
+		lizhi: listen the target addr and clear its perms to trigger seg fault
 		if t.tc.Name != "sh" && t.tc.Name != "bash" { //&& t.tc.Name != "syscall"{
 			Listen_target_addrs(t)
 		}
+		*/
+
 		// Handle application system call.
 		return t.doSyscall()
 
@@ -477,8 +480,8 @@ func Listen_target_addrs(t *Task) {
 */
 
 //lizhi
-/* revision */
-func Listen_target_addrs(t *Task) {
+/* revision: 2nd old version */
+/*func Listen_target_addrs(t *Task) {
 	sysno := t.Arch().SyscallNo()
 	args := t.Arch().SyscallArgs()
 	if int(sysno) == 308 {
@@ -494,6 +497,14 @@ func Listen_target_addrs(t *Task) {
 
 			addr_str := para1 | para2
 			addr := usermem.Addr(addr_str).RoundDown()
+
+			
+			// lizhi: cpuminer bitcoin -special
+			//if addr == usermem.Addr(0x514000) {
+			//	log.Debugf("[LIZHI] sysno addr %x, %d, get wrong address\n", addr, access)
+			//	addr = usermem.Addr(0x516000)
+			//}
+
 			log.Debugf("[LIZHI] sysno addr %x, %d\n", addr, access)
 
 			// lizhi: revision
@@ -525,7 +536,7 @@ func Listen_target_addrs(t *Task) {
 			maid.TAddr.WaitTime = int(wait_time) + 1
 			maid.TAddr.Unlock()
 	}
-}
+}*/
 
 func (t *Task) handle_seg_faults(addr usermem.Addr) bool {
 	new_addr := addr.RoundDown()
@@ -610,6 +621,13 @@ func (t *Task) start_delay(addr usermem.Addr) {
 
 	// start clear
 	stats, ok := Modify.modified[addr]
+	if ok && stats == 1 {
+		log.Debugf("[LIZHI] %s detect %x is being handled by %s", t.tid, addr, Modify.master)
+		return
+    }
+
+	/*
+	stats, ok := Modify.modified[addr]
 	if !ok {
 		Modify.modified[addr] = 1
 		Modify.master = t.tid
@@ -622,6 +640,7 @@ func (t *Task) start_delay(addr usermem.Addr) {
 		log.Debugf("[LIZHI] %s detect %x is being handled by %s", t.tid, addr, Modify.master)
 		return
 	}
+	*/
 
 	// save the perms for each time delay:
 	// multiple threads: two threads clear the perms
@@ -642,6 +661,9 @@ func (t *Task) start_delay(addr usermem.Addr) {
 	}
 
 	log.Debugf("[LIZHI] %s clear %x success.\n", t.tid, addr)
+	// log the success
+	Modify.modified[addr] = 1
+        Modify.master = t.tid
 
 	// delay time: not back lock, the refund needs to wait
 	maid.TAddr.Lock()
@@ -657,8 +679,8 @@ func (t *Task) monitor_timer() {
 	//tick := time.NewTicker(10 * time.Millisecond)
 
 	maid.TAddr.Lock()
-        wait_time := maid.TAddr.WaitTime
-        maid.TAddr.Unlock()
+    wait_time := maid.TAddr.WaitTime
+    maid.TAddr.Unlock()
 	tick := time.NewTicker(time.Duration(wait_time) * time.Microsecond)
 	log.Debugf("[LIZHI] started tick is %d\n", wait_time)
 	//tick := time.NewTicker(10000 * time.Microsecond)
@@ -710,8 +732,8 @@ func (t *Task) monitor_timer() {
 		}
 		//maid.TAddr.Unlock()
 
-	        wait_time := maid.TAddr.WaitTime
-	        maid.TAddr.Unlock()
+	    wait_time := maid.TAddr.WaitTime
+	    maid.TAddr.Unlock()
 		tick = time.NewTicker(time.Duration(wait_time) * time.Microsecond)
 		log.Debugf("[LIZHI] ended tick is %d\n", wait_time)
 

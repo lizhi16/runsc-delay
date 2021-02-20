@@ -35,6 +35,7 @@ func NewTargetAddr() *TargetAddr {
     return maddr
 }
 
+// storing the original perms of target addresses
 type ModAddr struct {
         sync.Mutex
         //modified map[usermem.Addr]int
@@ -52,8 +53,6 @@ var TAddrs *TargetAddrs
 var TAddr *TargetAddr
 var Modaddr *ModAddr
 
-var Test string
-
 func init() {
     log.Debugf("[LIZHI] maid initial...")
 
@@ -67,13 +66,9 @@ func init() {
     TAddr.WaitTime = 1000000
 
     Modaddr = NewModAddr()
-
-    Test = "no"
 }
 
 func Hex2addr(hexStr string) (usermem.Addr, error) {
-    log.Debugf("[LIZHI] Hex2addr: %s", hexStr)
-
     // remove 0x suffix if found in the input string
     cleaned := strings.Replace(hexStr, "0x", "", -1)
     cleaned = strings.Replace(cleaned, "\n", "", -1)
@@ -87,4 +82,61 @@ func Hex2addr(hexStr string) (usermem.Addr, error) {
     //return uint64(result)
     addr := usermem.Addr(uint64(result)).RoundDown()
     return addr, nil
+}
+
+func Listen_target_addrs(addrInfo string) {
+	log.Debugf("[LIZHI] Get Target Address: %s\n", addrInfo)
+
+    addr_acc := strings.Split(addrInfo, " ")
+    if len(addr_acc) != 2 {
+        log.Debugf("[LIZHI] Address format error: %s\n", addrInfo)
+        return
+    }
+
+    // get target address
+    addr, err := Hex2addr(addr_acc[0])
+    if err != nil {
+        log.Debugf("[LIZHI] Address %s transform error: %s\n", addr_acc[0], err)
+        return
+    }
+
+    // get access number of target address
+    access, err := strconv.Atoi(addr_acc[1])
+    if err != nil {
+        log.Debugf("[LIZHI] Access Number %s transform error: %s\n", addr_acc[1], err)
+        access = 1
+    }
+
+    log.Debugf("[LIZHI] sysno addr %x, %d\n", addr, access)
+
+	/*
+	// lizhi: cpuminer bitcoin -special
+    if addr == usermem.Addr(0x514000) {
+		log.Debugf("[LIZHI] sysno addr %x, %d, get wrong address\n", addr, access)
+		addr = usermem.Addr(0x516000)
+	}
+	*/
+
+    // lizhi: revision
+	if addr == usermem.Addr(0) {
+		log.Debugf("[LIZHI] addr is %x, stop delay...\n", addr)
+		TAddr.Lock()
+		TAddr.Addr = addr
+		TAddr.Flag = false
+		TAddr.Unlock()
+		return
+	}
+
+	//sleep time - Microsenconds, 400 is tf
+	sleep_time := (0.09 - float64(1/access/270)) * 10000000 - 400
+	log.Debugf("[LIZHI] sleep time is %f\n", sleep_time)
+	wait_time := 100000/access
+
+	// start to clear the addr's perms
+	TAddr.Lock()
+	TAddr.Addr = addr
+	TAddr.Flag = true
+	TAddr.SleepTime = int(sleep_time)
+	TAddr.WaitTime = int(wait_time) + 1
+	TAddr.Unlock()
 }

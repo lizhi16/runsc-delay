@@ -22,9 +22,7 @@ go_binary(
         "//runsc/flag",
         "//runsc/specutils",
         "@com_github_google_subcommands//:go_default_library",
-
-        "//pkg/sentry/maid",
-	"//runsc/monitor",
+        "//pkg/maid",
     ],
 )
 

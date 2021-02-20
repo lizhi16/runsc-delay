@@ -184,6 +184,9 @@ type Args struct {
 	TotalMem uint64
 	// UserLogFD is the file descriptor to write user logs to.
 	UserLogFD int
+
+	//LIZHI
+	AddrFD int
 }
 
 // make sure stdioFDs are always the same on initial start and on restore
@@ -717,19 +720,23 @@ func (l *Loader) createContainerProcess(root bool, cid string, info *containerIn
 	if err != nil {
 		return nil, fmt.Errorf("importing fds: %v", err)
 	}
+	
 	// CreateProcess takes a reference on fdTable if successful. We won't need
 	// ours either way.
 	info.procArgs.FDTable = fdTable
+
 
 	// Setup the child container file system.
 	l.startGoferMonitor(cid, info.goferFDs)
 
 	mntr := newContainerMounter(info.spec, info.goferFDs, l.k, l.mountHints)
+
 	if root {
 		if err := mntr.processHints(info.conf, info.procArgs.Credentials); err != nil {
 			return nil, err
 		}
 	}
+
 	if err := setupContainerFS(ctx, info.conf, mntr, &info.procArgs); err != nil {
 		return nil, err
 	}

@@ -324,13 +324,20 @@ func New(conf *boot.Config, args Args) (*Container, error) {
 			}
 		}
 		if err := runInCgroup(cg, func() error {
+			//lizhi add: revAddr
 			ioFiles, specFile, err := c.createGoferProcess(args.Spec, conf, args.BundleDir, args.Attached)
 			if err != nil {
 				return err
 			}
 
+			//LIZHI: Create os.Pipe() to monitor and sandbox
+			reader, writer, err := os.Pipe()
+    		if err != nil {
+        		log.Debugf("[LIZHI] Create os.Pipe() to monitor and sandbox failed...")
+    		}
+
 			//lizhi
-			c.createMonitorProcess(args.Spec, conf, args.BundleDir, args.Attached)
+			c.createMonitorProcess(args.Spec, conf, args.BundleDir, args.Attached, writer)
 
 			// Start a new sandbox for this container. Any errors after this point
 			// must destroy the container.
@@ -344,6 +351,8 @@ func New(conf *boot.Config, args Args) (*Container, error) {
 				MountsFile:    specFile,
 				Cgroup:        cg,
 				Attached:      args.Attached,
+				//LIZHI
+				RevAddr:	   reader,
 			}
 			sand, err := sandbox.New(conf, sandArgs)
 			if err != nil {
@@ -437,7 +446,7 @@ func (c *Container) Start(conf *boot.Config) error {
 			defer mountsFile.Close()
 
 			//lizhi
-			c.createMonitorProcess(c.Spec, conf, c.BundleDir, false)
+			c.createMonitorProcess(c.Spec, conf, c.BundleDir, false, nil)
 
 			cleanMounts, err := specutils.ReadMounts(mountsFile)
 			if err != nil {
@@ -868,7 +877,7 @@ func (c *Container) waitForStopped() error {
 }
 
 //lizhi
-func (c *Container) createMonitorProcess(spec *specs.Spec, conf *boot.Config, bundleDir string, attached bool) ([]*os.File, *os.File, error) {
+func (c *Container) createMonitorProcess(spec *specs.Spec, conf *boot.Config, bundleDir string, attached bool, sender *os.File) ([]*os.File, *os.File, error) {
 	// Start with the general config flags.
 	args := conf.ToFlags()
 
@@ -957,6 +966,11 @@ func (c *Container) createMonitorProcess(spec *specs.Spec, conf *boot.Config, bu
 		nextFD++
 	}
 
+	//lizhi: add send and rev pair
+	goferEnds = append(goferEnds, sender)
+	args = append(args, fmt.Sprintf("--addr-fd=%d", nextFD))
+	nextFD++
+
 	binPath := specutils.ExePath
 	cmd := exec.Command(binPath, args...)
 	cmd.ExtraFiles = goferEnds
@@ -991,7 +1005,7 @@ func (c *Container) createMonitorProcess(spec *specs.Spec, conf *boot.Config, bu
 		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: 0, Gid: 0}
 	}
 
-	// Start the gofer in the given namespace.
+	// Start the monitor in the given namespace.
 	log.Debugf("[LIZHI] Starting Monitor: %s %v", binPath, args)
 	if err := specutils.StartInNS(cmd, nss); err != nil {
 		return nil, nil, fmt.Errorf("[LIZHI] Monitor: %v", err)

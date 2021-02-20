@@ -730,6 +730,7 @@ func (c *containerMounter) createRootMount(ctx context.Context, conf *Config) (*
 		opts = append(opts, "overlayfs_stale_read")
 	}
 
+	//lizhi read code: gofer-sandbox communication
 	rootInode, err := p9FS.Mount(ctx, rootDevice, mf, strings.Join(opts, ","), nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating root mount point: %v", err)

@@ -96,7 +96,7 @@ func (g *Gofer) SetFlags(f *flag.FlagSet) {
 	f.IntVar(&g.mountsFD, "mounts-fd", -1, "mountsFD is the file descriptor to write list of mounts after they have been resolved (direct paths, no symlinks).")
 
 	//LIZHI
-	f.IntVar(&g.addrFD, "addr-fd", -1, "lizhi: communicate with gofer and sandbox")
+	f.IntVar(&g.addrFD, "addr-fd", -1, "Cijitter: communicate with gofer and sandbox")
 }
 
 // Execute implements subcommands.Command.

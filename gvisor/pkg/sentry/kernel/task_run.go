@@ -113,7 +113,7 @@ func (t *Task) run(threadID uintptr) {
 		t.runState = t.runState.execute(t)
 		if t.runState == nil {
 			//lizhi: clean the pgf log for dead thread
-			log.Debugf("[LIZHI] thread %s runState is nil: %s-7", t.tid, t.tc.Name)
+			log.Debugf("[Cijitter] thread %s runState is nil: %s-7", t.tid, t.tc.Name)
 			t.pgf = false
 
 			groupid := int(t.ThreadGroup().ID())
@@ -124,7 +124,7 @@ func (t *Task) run(threadID uintptr) {
 					//new thread strat to implement delay
 					if t.tid == Dthread.Worker {
 						for thread, _ := range Dthread.Threads[groupid]{
-							log.Debugf("[LIZHI] thread %s implement delay", thread)
+							log.Debugf("[Cijitter] thread %s implement delay", thread)
 							Dthread.Threads[groupid][thread] = 1
 							Dthread.Worker = thread
 							break
@@ -453,111 +453,21 @@ func (t *Task) Yield() {
 	runtime.Gosched()
 }
 
-//lizhi
-/*
-func Listen_target_addrs(t *Task) {
-	sysno := t.Arch().SyscallNo()
-	args := t.Arch().SyscallArgs()
-	if int(sysno) == 308 {
-			log.Debugf("[LIZHI] sysno in run: %d\n", sysno)
-			//log.Debugf("[LIZHI] sysargvs in run: %x, %x\n", args[0].Value, args[1].Value)
-
-			// receive the addr needs to clear perms from syscall 308
-			para1 := args[0].Value << 32
-			para2 := args[1].Value
-
-			addr_str := para1 | para2
-			addr := usermem.Addr(addr_str).RoundDown()
-			log.Debugf("[LIZHI] sysno addr %x\n", addr)
-
-			// start to clear the addr's perms
-			maid.TAddr.Lock()
-			maid.TAddr.Addr = addr
-			maid.TAddr.Flag = true
-			maid.TAddr.Unlock()
-	}
-}
-*/
-
-//lizhi
-/* revision: 2nd old version */
-/*func Listen_target_addrs(t *Task) {
-	sysno := t.Arch().SyscallNo()
-	args := t.Arch().SyscallArgs()
-	if int(sysno) == 308 {
-			log.Debugf("[LIZHI] sysno in run: %d\n", sysno)
-			//log.Debugf("[LIZHI] sysargvs in run: %x, %x\n", args[0].Value, args[1].Value)
-
-			// receive the addr needs to clear perms from syscall 308
-			upper := args[0].Value / 1000
-			access := args[0].Value % 1000
-
-			para1 := upper << 32
-			para2 := args[1].Value
-
-			addr_str := para1 | para2
-			addr := usermem.Addr(addr_str).RoundDown()
-
-			
-			// lizhi: cpuminer bitcoin -special
-			//if addr == usermem.Addr(0x514000) {
-			//	log.Debugf("[LIZHI] sysno addr %x, %d, get wrong address\n", addr, access)
-			//	addr = usermem.Addr(0x516000)
-			//}
-
-			log.Debugf("[LIZHI] sysno addr %x, %d\n", addr, access)
-
-			// lizhi: revision
-			if addr == usermem.Addr(0) {
-				log.Debugf("[LIZHI] addr is %x, stop delay...\n", addr)
-				maid.TAddr.Lock()
-				maid.TAddr.Addr = addr
-				maid.TAddr.Flag = false
-				maid.TAddr.Unlock()
-				return
-			}
-
-			// judge if this page needs to be delayed
-			if access <= 80 {
-				log.Debugf("[LIZHI] sysno addr %x is not target\n", addr)
-				return
-			}
-
-			//sleep time - Microsenconds, 400 is tf
-			sleep_time := (0.09 - float64(1/access/270)) * 10000000 - 400
-			log.Debugf("[LIZHI] sleep time is %f\n", sleep_time)
-			wait_time := 100000/access
-
-			// start to clear the addr's perms
-			maid.TAddr.Lock()
-			maid.TAddr.Addr = addr
-			maid.TAddr.Flag = true
-			maid.TAddr.SleepTime = int(sleep_time)
-			maid.TAddr.WaitTime = int(wait_time) + 1
-			maid.TAddr.Unlock()
-	}
-}*/
-
+// Cijitter Functions
 func (t *Task) handle_seg_faults(addr usermem.Addr) bool {
 	new_addr := addr.RoundDown()
-	log.Debugf("[LIZHI] %s Handle seg faults: %x, %x\n", t.tid, addr, new_addr)
+	log.Debugf("[Cijitter] %s Handle seg faults: %x, %x\n", t.tid, addr, new_addr)
 
 	// refund the perms to the addr modified by us.
 	org_perms, ok := Modify.perms[new_addr]
 	if !ok {
-		log.Debugf("[LIZHI] %s Addr %x not in modified list\n", t.tid, new_addr)
+		log.Debugf("[Cijitter] %s Addr %x not in modified list\n", t.tid, new_addr)
 		return false
 	}
 
-	// two threads maybe get the seg faults at the same time
-	/*if Modify.modified[new_addr] == 0 {
-	log.Debugf("[LIZHI] %s Addr %x have been refunded\n", t.tid, new_addr)
-			return true
-	}*/
-
-	log.Debugf("[LIZHI] Addr %x in modified list, mprotect perms %s\n", new_addr, org_perms.String())
+	log.Debugf("[Cijitter] Addr %x in modified list, mprotect perms %s\n", new_addr, org_perms.String())
 	if err := t.MemoryManager().MProtect(new_addr, usermem.PageSize, org_perms, false); err != nil {
-		log.Debugf("[LIZHI] Addr %x refund failed %v", new_addr, err)
+		log.Debugf("[Cijitter] Addr %x refund failed %v", new_addr, err)
 		//need?
 		Modify.modified[new_addr] = 0
 		Modify.master = ""
@@ -567,7 +477,7 @@ func (t *Task) handle_seg_faults(addr usermem.Addr) bool {
 	Modify.modified[new_addr] = 0
  	Modify.master = ""
 
- 	log.Debugf("[LIZHI] Addr %x refund success", new_addr)
+ 	log.Debugf("[Cijitter] Addr %x refund success", new_addr)
 
  	//delay revision test
 	/*
@@ -582,11 +492,11 @@ func (t *Task) handle_seg_faults(addr usermem.Addr) bool {
 }
 
 func (t *Task) start_delay(addr usermem.Addr) {
-	log.Debugf("[LIZHI] %s start to clear %x\n", t.tid, addr)
+	log.Debugf("[Cijitter] %s start to clear %x\n", t.tid, addr)
 
 	//judge addr is legal and get real perms
 	if t.atFlag == false {
-		log.Debugf("[LIZHI] %s t.At is nil, can't delay\n", t.tid)
+		log.Debugf("[Cijitter] %s t.At is nil, can't delay\n", t.tid)
 		return
 	}
 
@@ -600,7 +510,7 @@ func (t *Task) start_delay(addr usermem.Addr) {
 
 	org_perms, err := t.MemoryManager().GetAddrPerms(t, addr, t.At)
 	if err != nil {
-		log.Debugf("[LIZHI] can't get the original perms: %x, %v\n", addr, err)
+		log.Debugf("[Cijitter] can't get the original perms: %x, %v\n", addr, err)
 		return
 	}
 
@@ -615,32 +525,16 @@ func (t *Task) start_delay(addr usermem.Addr) {
 	maid.TAddr.Unlock()
 
 	if !clear_stats || target_addr != addr {
-		log.Debugf("[LIZHI] new delay round start, stop clear %x...", addr)
+		log.Debugf("[Cijitter] new delay round start, stop clear %x...", addr)
 		return
 	}
 
 	// start clear
 	stats, ok := Modify.modified[addr]
 	if ok && stats == 1 {
-		log.Debugf("[LIZHI] %s detect %x is being handled by %s", t.tid, addr, Modify.master)
+		log.Debugf("[Cijitter] %s detect %x is being handled by %s", t.tid, addr, Modify.master)
 		return
     }
-
-	/*
-	stats, ok := Modify.modified[addr]
-	if !ok {
-		Modify.modified[addr] = 1
-		Modify.master = t.tid
-	// nobody handle this addr
-	} else if stats == 0 {
-		Modify.modified[addr] = 1
-		Modify.master = t.tid
-	// this addr are being handled (doesn't refund perms)
-	} else if stats == 1 {
-		log.Debugf("[LIZHI] %s detect %x is being handled by %s", t.tid, addr, Modify.master)
-		return
-	}
-	*/
 
 	// save the perms for each time delay:
 	// multiple threads: two threads clear the perms
@@ -656,11 +550,11 @@ func (t *Task) start_delay(addr usermem.Addr) {
 
 	err = t.MemoryManager().MProtect(addr, usermem.PageSize, usermem.NoAccess, false)
 	if err != nil {
-		log.Debugf("[LIZHI] clear %x perms failed: %v\n", addr, err)
+		log.Debugf("[Cijitter] clear %x perms failed: %v\n", addr, err)
 		return
 	}
 
-	log.Debugf("[LIZHI] %s clear %x success.\n", t.tid, addr)
+	log.Debugf("[Cijitter] %s clear %x success.\n", t.tid, addr)
 	// log the success
 	Modify.modified[addr] = 1
         Modify.master = t.tid
@@ -674,7 +568,7 @@ func (t *Task) start_delay(addr usermem.Addr) {
 }
 
 func (t *Task) monitor_timer() {
-	log.Debugf("[LIZHI] start delayer for thread %s", t.tid)
+	log.Debugf("[Cijitter] start delayer for thread %s", t.tid)
 	//tick := time.NewTicker(1 * time.Second)
 	//tick := time.NewTicker(10 * time.Millisecond)
 
@@ -682,7 +576,7 @@ func (t *Task) monitor_timer() {
     wait_time := maid.TAddr.WaitTime
     maid.TAddr.Unlock()
 	tick := time.NewTicker(time.Duration(wait_time) * time.Microsecond)
-	log.Debugf("[LIZHI] started tick is %d\n", wait_time)
+	log.Debugf("[Cijitter] started tick is %d\n", wait_time)
 	//tick := time.NewTicker(10000 * time.Microsecond)
 
 	defer tick.Stop()
@@ -694,7 +588,7 @@ func (t *Task) monitor_timer() {
 		//judge if need to start delay mechanism in this thread
 		Dthread.RLock()
 		if t.tid != Dthread.Worker {
-			//log.Debugf("[LIZHI] thread %s is sleeping...", t.tid)
+			//log.Debugf("[Cijitter] thread %s is sleeping...", t.tid)
 			Dthread.RUnlock()
 			continue
 		}
@@ -704,7 +598,7 @@ func (t *Task) monitor_timer() {
 
 		//judge thread statue
 		if t.pgf == false {
-			log.Debugf("[LIZHI] thread %s: monitor exit", t.tid)
+			log.Debugf("[Cijitter] thread %s: monitor exit", t.tid)
 			return	//or use "continue"
 		}
 
@@ -723,10 +617,10 @@ func (t *Task) monitor_timer() {
 		maid.TAddr.Lock()
 		addr := maid.TAddr.Addr
 		if maid.TAddr.Flag == true {
-			log.Debugf("[LIZHI] thread %s get the delay pages %x", t.tid, addr)
+			log.Debugf("[Cijitter] thread %s get the delay pages %x", t.tid, addr)
 			pages = append(pages, addr)
 		} else {
-			log.Debugf("[LIZHI]---- target page is null ----\n")
+			log.Debugf("[Cijitter]---- target page is null ----\n")
 			maid.TAddr.Unlock()
 			continue
 		}
@@ -735,16 +629,16 @@ func (t *Task) monitor_timer() {
 	    wait_time := maid.TAddr.WaitTime
 	    maid.TAddr.Unlock()
 		tick = time.NewTicker(time.Duration(wait_time) * time.Microsecond)
-		log.Debugf("[LIZHI] ended tick is %d\n", wait_time)
+		log.Debugf("[Cijitter] ended tick is %d\n", wait_time)
 
 		// start to delay
 		if len(pages) == 0 {
-			log.Debugf("[LIZHI] thread %s no pages to delay", t.tid)
+			log.Debugf("[Cijitter] thread %s no pages to delay", t.tid)
 			index --
 			continue
 		}
 
-		log.Debugf("[LIZHI] thread %s start %d round delay ", t.tid, index)
+		log.Debugf("[Cijitter] thread %s start %d round delay ", t.tid, index)
 		for target := range pages {
 			t.start_delay(pages[target])
 		}

@@ -334,7 +334,7 @@ func main() {
 	}
 
 	if subcommand == "monitor" {
-		log.Debugf("[LIZHI] Start to monitor addr...")
+		log.Debugf("[Cijitter] Start to monitor addr...")
 		
 		// init notifier thread
 		addrChan := make(chan string, 1)
@@ -343,7 +343,7 @@ func main() {
 		//strat the monitor
 		_, cid := filepath.Split(os.Args[35])	// get container id
 		monitor(cid, addrChan)
-    }
+	}
 	/*===========================================*/
 
 	log.Infof("***************************")
@@ -414,12 +414,12 @@ func listener() {
 		var data interface{}
 		decoder := json.NewDecoder(reader)
 		if err := decoder.Decode(&data); err == nil {
-			log.Debugf("[LIZHI] Data received from child pipe: %v\n", data)
+			log.Debugf("[Cijitter] Addr received from child pipe: %v\n", data)
 			addrInfo := fmt.Sprintf("%v", data)
 			maid.Listen_target_addrs(addrInfo)
 		}
 	}
-	log.Debugf("[LIZHI] Data listener finished...")
+	log.Debugf("[Cijitter] Addr listener finished!")
 }
 
 func notifier(msgChan chan string) {
@@ -430,17 +430,14 @@ func notifier(msgChan chan string) {
 		msg := <-msgChan
 		err := json.NewEncoder(writer).Encode(msg)
 		if err != nil {
-			log.Debugf("[LIZHI] Data sended failed: %v", err)
+			log.Debugf("[Cijitter] Addr sended failed: %v", err)
 		}
 	}
-	log.Debugf("[LIZHI] Data notifier finished...")
+	log.Debugf("[Cijitter] Addr notifier finished!")
 }
 
 func monitor(cid string, msgChan chan string) {
-	// load syscall
-	if add_syscall(cid) {
-		log.Debugf("[LIZHI] syscall load success...")
-	}
+	log.Debugf("[Cijitter] Monitor start...")
 
 	// judge if it needs to delay
 	var last_addr_acc = [3]int{500, 500, 500}
@@ -455,51 +452,15 @@ func monitor(cid string, msgChan chan string) {
 
 	for {
 		// call kernel module
-		log.Debugf("[LIZHI] start to get target addr")
-
-		/*command := "sudo python /home/zl/runsc/monitor/client.py"
-		cmd := exec.Command("bash", "-c", command)
-		output, err := cmd.Output()
-		if err != nil {
-			log.Debugf("[LIZHI] command execution failed: %s, %s", err, output)
-			time.Sleep(wait_duration * time.Millisecond)
-			dstats = false
-			continue
-		}
-		log.Debugf("[LIZHI] get the results %s", output)
-
-		// get the target addr
-		addr_out := *(*string)(unsafe.Pointer(&output))
-
-		if strings.Contains(addr_out, "Error"){
-            log.Debugf("[LIZHI] output contains Error: %s", addr_out)
-			time.Sleep(wait_duration * time.Millisecond)
-			dstats = false
-            continue
-		}
-
-		addr_out = strings.Replace(addr_out, "(", "", -1)
-		addr_out = strings.Replace(addr_out, ")", "", -1)
-		addr_out = strings.Replace(addr_out, "'", "", -1)
-		addr_out = strings.Replace(addr_out, ",", "", -1)
-		addr_out = strings.Replace(addr_out, "\n", "", -1)
-
-		addr_acc := strings.Split(addr_out, " ")
-		if len(addr_acc) != 2 {
-			log.Debugf("[LIZHI] output %s is error...", addr_out)
-			time.Sleep(wait_duration * time.Millisecond)
-            continue
-		}*/
-
-		stat, addr, acc_num := get_target_addr()
-		if !stat {
-			log.Debugf("[LIZHI] failed to get target address...")
+		addr, acc_num, err := get_target_addr()
+		if !err {
+			log.Debugf("[Cijitter] failed to get target address...")
 			time.Sleep(wait_duration * time.Millisecond)
 			dstats = false
 			continue
 		}
 
-		log.Debugf("[LIZHI] addr: %s, access: %d", addr, acc_num)
+		log.Debugf("[Cijitter] addr: %s, access: %d", addr, acc_num)
 		addr_acc := addr + " " + strconv.Itoa(acc_num)
 
 		inx := index%3
@@ -510,55 +471,33 @@ func monitor(cid string, msgChan chan string) {
 		}
 
 		if acc_num <= 10 {// || err_acc != nil {
-			log.Debugf("[LIZHI] access %d <= 60, pass...\n", acc_num)
+			log.Debugf("[Cijitter] access %d <= 60, pass...\n", acc_num)
 			time.Sleep(wait_duration * time.Millisecond)
 			dstats = false
 			continue
 		} else if !judge_delay(last_addr_acc, inx) {
-			log.Debugf("[LIZHI] this is a strip, pass... %d\n", acc_num)
+			log.Debugf("[Cijitter] this is a strip, pass... %d\n", acc_num)
 			time.Sleep(wait_duration * time.Millisecond)
 			dstats = false
             continue
 		}
 
+		// notify: delay target address
 		if strings.Contains(addr, "0x"){
-			log.Debugf("[LIZHI] start to send addr %s", cid)
-			// send addr to channel
+			log.Debugf("[Cijitter] start to send addr %s", cid)
 			msgChan <- addr_acc
-
-			/*cid = strings.Replace(cid, "\n", "", -1)
-			command := "docker exec " + cid + " syscall "
-			command += addr_acc
-
-			cmd := exec.Command("bash", "-c", command)
-			output, err := cmd.Output()
-			if err != nil {
-				log.Debugf("[LIZHI] docekr execution failed: %s, %s", err, output)
-				dstats = false
-				continue
-			}*/
 		}
 		dstats = true
 
 		// delay time window
 		time.Sleep(delay_duration * time.Millisecond)
 
-		log.Debugf("[LIZHI] stop delay and start to profiling %s", cid)
+		// notify: stop delay target address
+		log.Debugf("[Cijitter] stop delay and start to profiling %s", cid)
 		stopSig := "0x00000 0"
 		msgChan <- stopSig
-		
-		/*command_stop := "docker exec "
-		command_stop += cid
-		command_stop += " syscall 0x00000 0"
 
-		cmd_stop := exec.Command("bash", "-c", command_stop)
-		output_stop, err_stop := cmd_stop.Output()
-		if err_stop != nil {
-			log.Debugf("[LIZHI] docker delay stop failed: %s, %s", err_stop, output_stop)
-			continue
-		}*/
-
-		//keep stable
+		//keep sampling stable
 		time.Sleep(1000 * time.Millisecond)
 	}
 }
@@ -567,7 +506,7 @@ func judge_delay(access [3]int, index int) bool {
 	return true
 	sum := 0
 	for i:=0; i<3; i++ {
-		log.Debugf("[LIZHI] access is %d", access[i])
+		log.Debugf("[Cijitter] access is %d", access[i])
 		sum += access[i]
 	}
 	mean := float64(sum)/3.0
@@ -579,7 +518,7 @@ func judge_delay(access [3]int, index int) bool {
 	stddev := math.Sqrt(std)
 	dev := std/3.0
 
-	log.Debugf("[LIZHI] stddev is %f, dev %f, mean %f", stddev, dev, mean)
+	log.Debugf("[Cijitter] stddev is %f, dev %f, mean %f", stddev, dev, mean)
 
 	diff := 0
 	ratio := 0.0
@@ -607,33 +546,17 @@ var basePath string = "/home/zl/runsc/monitor/"
 var logPath string = basePath + "log/targetAddrs.list"
 var kernelPath string = basePath + "kernel/"
 
-func add_syscall(cid string) bool {
-	command := "docker cp " 
-	command +=  basePath +  "/syscall "
-	command += cid
-	command += ":/usr/bin/"
-
-	cmd := exec.Command("bash", "-c", command)
-	output, err := cmd.Output()
-	if err != nil {
-		log.Debugf("[LIZHI] syscall add failed:", err, output)
-		return false
-	}
-
-	return true
-}
-
 //call kernel module to get target address
 func read_sample_logs() ([]string, map[string]int) {
 	var addr_access map[string]int
     addr_access = make(map[string]int)
 	var addrs_order []string
-	addr := "0x00000"
+	addr := "0x000000"
 	access := 0
 
     fp, err := os.Open(logPath)
     if err != nil {
-		log.Debugf("[LIZHI] read_sample_logs: open log file failed: %s", err)
+		log.Debugf("[Cijitter] read_sample_logs: open log file failed: %s", err)
 		return addrs_order, addr_access
     }
     defer fp.Close()
@@ -681,7 +604,7 @@ func get_pid() []string {
 	cmd := exec.Command("bash", "-c", command)
 	output, err := cmd.Output()
 	if err != nil {
-		log.Debugf("[LIZHI] get pid failed:", err, output)
+		log.Debugf("[Cijitter] get pid failed:", err, output)
 		return pids
 	}
 
@@ -729,7 +652,7 @@ func chk_prerequisites() bool {
 	if err == nil && !logf.IsDir(){
 		os.Rename(logPath, logPath + ".old")
 	} else {
-		log.Debugf("[LIZHI] delete old log failed: %s", err)
+		log.Debugf("[Cijitter] delete old log failed: %s", err)
 	}
 
 	// check kernel module
@@ -739,14 +662,14 @@ func chk_prerequisites() bool {
 		cmd := exec.Command("bash", "-c", command)
 		output, err := cmd.Output()
 		if err != nil {
-			log.Debugf("[LIZHI] kernel module load faild: %s, %s", err, output)
+			log.Debugf("[Cijitter] kernel module load faild: %s, %s", err, output)
 			return false
 		}
 	}
 
 	pids, err_pids := os.Stat(DBGFS_PIDS)
 	if err_pids != nil || pids.IsDir() {
-		log.Debugf("[LIZHI] kmapia pids file not exists: %s", err_pids)
+		log.Debugf("[Cijitter] kmapia pids file not exists: %s", err_pids)
 		return false
 	}
 
@@ -758,27 +681,27 @@ func exit_handler() bool {
 	cmd := exec.Command("bash", "-c", command)
 	output, err := cmd.Output()
 	if err != nil {
-		log.Debugf("[LIZHI] rmmod kernel module failed:", err, output)
+		log.Debugf("[Cijitter] rmmod kernel module failed:", err, output)
 		return false
 	}
 
 	return true
 }
 
-func get_target_addr() (bool, string, int) {
+func get_target_addr() (string, int, bool) {
 	addr := ""
 	access := -1
     targets := get_pid()
     if len(targets) == 0 {
-		log.Debugf("[LIZHI] CANNOT GET TARGET PID...")
-        return false, addr, access
+		log.Debugf("[Cijitter] CANNOT GET TARGET PID...")
+        return addr, access, false
 	}
 
     // strat kernel module
     for _, pid := range targets {
 		stat := chk_prerequisites()
 		if !stat {
-			return false, addr, access
+			return addr, access, false
 		}
 
 		command := "sudo echo " + pid + " > " + DBGFS_PIDS
@@ -789,6 +712,7 @@ func get_target_addr() (bool, string, int) {
 		cmd = exec.Command("bash", "-c", command)
 		cmd.Output()
 
+		// sampling duration
 		time.Sleep(100 * time.Millisecond) // 0.1 seconds
 
 		command = "sudo echo off > " + DBGFS_TRACING_ON
@@ -802,11 +726,11 @@ func get_target_addr() (bool, string, int) {
 		// get the target addr
         addr_order, addrs_access := read_sample_logs()
 		if len(addr_order) == 0 {
-			return false, addr, access
+			return addr, access, false
 		}
 		
-		return true, addr_order[0], addrs_access[addr_order[0]]
+		return addr_order[0], addrs_access[addr_order[0]], true
 	}
 
-	return false, addr, access
+	return addr, access, false
 }

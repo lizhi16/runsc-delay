@@ -333,7 +333,7 @@ func New(conf *boot.Config, args Args) (*Container, error) {
 			//LIZHI: Create os.Pipe() to monitor and sandbox
 			reader, writer, err := os.Pipe()
     		if err != nil {
-        		log.Debugf("[LIZHI] Create os.Pipe() to monitor and sandbox failed...")
+        		log.Debugf("[Cijitter] Create os.Pipe() to monitor and sandbox failed...")
     		}
 
 			//lizhi
@@ -890,7 +890,7 @@ func (c *Container) createMonitorProcess(spec *specs.Spec, conf *boot.Config, bu
 	if conf.LogFilename != "" {
 		logFile, err := os.OpenFile(conf.LogFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[LIZHI] opening log file %q: %v", conf.LogFilename, err)
+			return nil, nil, fmt.Errorf("[Cijitter] opening log file %q: %v", conf.LogFilename, err)
 		}
 		defer logFile.Close()
 		goferEnds = append(goferEnds, logFile)
@@ -908,7 +908,7 @@ func (c *Container) createMonitorProcess(spec *specs.Spec, conf *boot.Config, bu
 		}
 		debugLogFile, err := specutils.DebugLogFile(conf.DebugLog, "monitor", test)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[LIZHI] opening debug log file in %q: %v", conf.DebugLog, err)
+			return nil, nil, fmt.Errorf("[Cijitter] opening debug log file in %q: %v", conf.DebugLog, err)
 		}
 		defer debugLogFile.Close()
 		goferEnds = append(goferEnds, debugLogFile)
@@ -1006,11 +1006,11 @@ func (c *Container) createMonitorProcess(spec *specs.Spec, conf *boot.Config, bu
 	}
 
 	// Start the monitor in the given namespace.
-	log.Debugf("[LIZHI] Starting Monitor: %s %v", binPath, args)
+	log.Debugf("[Cijitter] Starting Monitor: %s %v", binPath, args)
 	if err := specutils.StartInNS(cmd, nss); err != nil {
-		return nil, nil, fmt.Errorf("[LIZHI] Monitor: %v", err)
+		return nil, nil, fmt.Errorf("[Cijitter] Monitor: %v", err)
 	}
-	log.Infof("[LIZHI] Monitor started, PID: %d", cmd.Process.Pid)
+	log.Infof("[Cijitter] Monitor started, PID: %d", cmd.Process.Pid)
 	c.GoferPid = cmd.Process.Pid
 	c.goferIsChild = true
 	return sandEnds, mountsSand, nil

@@ -333,7 +333,7 @@ func main() {
 		go listener()
 	}
 
-    if subcommand == "monitor" {
+	if subcommand == "monitor" {
 		log.Debugf("[LIZHI] Start to monitor addr...")
 		
 		// init notifier thread
